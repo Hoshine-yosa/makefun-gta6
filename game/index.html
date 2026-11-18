@@ -10,7 +10,7 @@
   .hidden { display: none !important; }
   /* ---------- HUD ---------- */
   #hud { position: fixed; inset: 0; pointer-events: none; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.8); z-index: 5; }
-  #hud-top-right { position: absolute; top: 12px; right: 14px; text-align: right; }
+  #hud-top-right { position: absolute; top: 12px; right: 14px; text-align: right; background: rgba(0,0,0,.35); padding: 6px 10px; border-radius: 6px; }
   #cash { font-size: 28px; font-weight: bold; color: #7dff9a; letter-spacing: 1px; }
   #clock { font-size: 14px; color: #cfe8ff; margin-top: 2px; letter-spacing: 2px; }
   #wanted { margin-top: 4px; font-size: 26px; letter-spacing: 2px; color: #ffd23f; }
@@ -31,11 +31,14 @@
   #hint { position: absolute; bottom: 14px; left: 14px; font-size: 13px; color: #dfeefc; background: rgba(0,0,0,.4); padding: 7px 10px; border-radius: 4px; line-height: 1.6; }
   #hint b { color: #ffd23f; }
   #toast { position: absolute; top: 22%; left: 50%; transform: translateX(-50%); font-size: 26px; font-weight: bold; color: #ffd23f; text-align: center; opacity: 0; transition: opacity .3s; }
+  #toast.pop { animation: toastpop .45s ease-out; }
+  @keyframes toastpop { 0% { transform: translateX(-50%) scale(.75); } 35% { transform: translateX(-50%) scale(1.08); } 100% { transform: translateX(-50%) scale(1); } }
   #crosshair { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; }
   #crosshair::before, #crosshair::after { content: ""; position: absolute; background: #fff; box-shadow: 0 0 3px #000; }
   #crosshair::before { left: 10px; top: 0; width: 2px; height: 22px; }
   #crosshair::after { left: 0; top: 10px; width: 22px; height: 2px; }
-  #interact { position: absolute; left: 50%; top: 58%; transform: translateX(-50%); font-size: 16px; background: rgba(0,0,0,.6); border: 1px solid #ffd23f; color: #ffd23f; padding: 6px 12px; border-radius: 4px; }
+  #interact { position: absolute; left: 50%; top: 58%; transform: translateX(-50%); font-size: 16px; background: rgba(0,0,0,.6); border: 1px solid #ffd23f; color: #ffd23f; padding: 6px 12px; border-radius: 4px; animation: ipulse 1.3s ease-in-out infinite; }
+  @keyframes ipulse { 50% { box-shadow: 0 0 14px rgba(255,210,63,.9); } }
   /* ---------- overlays ---------- */
   .overlay { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; background: linear-gradient(180deg, rgba(6,18,32,.55) 0%, rgba(6,18,32,.82) 100%); color: #fff; }
   .panel { max-width: 640px; width: 92%; text-align: center; padding: 28px 30px; background: rgba(8,22,38,.78); border: 1px solid rgba(255,210,63,.5); border-radius: 12px; box-shadow: 0 12px 50px rgba(0,0,0,.6); }

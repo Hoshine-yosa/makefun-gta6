@@ -79,8 +79,8 @@
       var og = ctx.createGain();
       og.gain.setValueAtTime(0.5, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
       o.connect(og); og.connect(this.master); o.start(t); o.stop(t + 0.15);
-    } else if (type === 'pickup' || type === 'mission') {
-      var notes = type === 'pickup' ? [660, 880] : [523, 659, 784, 1046];
+    } else if (type === 'pickup' || type === 'mission' || type === 'alarm') {
+      var notes = type === 'pickup' ? [660, 880, 1320] : (type === 'alarm' ? [880, 660, 880, 660] : [523, 659, 784, 1046]);
       for (var i = 0; i < notes.length; i++) {
         var o2 = ctx.createOscillator(); o2.type = 'sine'; o2.frequency.value = notes[i];
         var g2 = ctx.createGain();

@@ -39,12 +39,22 @@
     var torso = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.72, 0.34), mat(shirt));
     torso.position.y = 1.05; torso.castShadow = true;
     g.add(torso);
-    var head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.42, 0.42), mat(skin));
+    // jacket: a darker open-front layer over the shirt, so a jacketed
+    // character (Danny's gold jacket) reads at a glance; plain peds skip it
+    if (opts.jacket) {
+      var jk = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.6, 0.38), mat(opts.jacket));
+      jk.position.y = 1.08; jk.castShadow = true; g.add(jk);
+    }
+    var head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 10, 8), mat(skin));
     head.position.y = 1.66; head.castShadow = true;
     g.add(head);
-    // hair cap
-    var hair = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.14, 0.44), mat(opts.hair !== undefined ? opts.hair : 0x1a1a1a));
-    hair.position.y = 1.9;
+    // eyes: two dark beads on the face (+z is forward)
+    var eyeG = new THREE.SphereGeometry(0.055, 6, 5), eyeM = mat(0x141414);
+    var eL = new THREE.Mesh(eyeG, eyeM); eL.position.set(-0.09, 1.68, 0.21); g.add(eL);
+    var eR = eL.clone(); eR.position.x = 0.09; g.add(eR);
+    // hair cap: a flattened dome on top of the head
+    var hair = new THREE.Mesh(new THREE.SphereGeometry(0.25, 10, 6), mat(opts.hair !== undefined ? opts.hair : 0x1a1a1a));
+    hair.scale.y = 0.55; hair.position.y = 1.78;
     g.add(hair);
     var legL = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.72, 0.26), mat(pants));
     legL.position.set(-0.16, 0.36, 0); legL.castShadow = true;
@@ -58,6 +68,11 @@
       var hat = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.32, 0.1, 10), mat(opts.hat));
       hat.position.y = 1.98; g.add(hat);
     }
+    // police badge: a gold dot on the chest, so officers read as police
+    if (opts.badge) {
+      var badge = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.03), mat(0xffd23f));
+      badge.position.set(-0.18, 1.28, 0.19); g.add(badge);
+    }
     return { group: g, legL: legL, legR: legR, armL: armL, armR: armR, head: head };
   }
 
@@ -69,18 +84,24 @@
     person.armR.rotation.x = s * 0.8;
   }
 
+  // Shared car trim so every car doesn't allocate its own: hubcap discs,
+  // bumper bars and grille strips.
+  var HUB_GEO = new THREE.CylinderGeometry(0.2, 0.2, 0.05, 10);
+  var HUB_MAT = new THREE.MeshLambertMaterial({ color: 0xb8bec6 });
+  var BUMP_MAT = new THREE.MeshLambertMaterial({ color: 0x222222 });
+
   // ---- a car. Returns {group, wheels:[4], bodyMat}. Police cars get a light bar.
   // type: 'sedan' | 'sport' | 'van' — each shapes the body differently.
   function makeCar(rng, color, isPolice, type) {
     var g = new THREE.Group();
     var t = CAR_TYPES[type] || CAR_TYPES.sedan;
     var bodyColor = isPolice ? 0x1c2733 : (color !== undefined ? color : rng.pick(CAR_COLORS));
-    var bodyMat = new THREE.MeshLambertMaterial({ color: bodyColor });
+    var bodyMat = new THREE.MeshPhongMaterial({ color: bodyColor, shininess: 70, specular: 0x333333 });
     var body = new THREE.Mesh(new THREE.BoxGeometry(t.bodyW, t.bodyH, t.bodyL), bodyMat);
     body.position.y = 0.35 + t.bodyH / 2; body.castShadow = true;
     g.add(body);
     var cabin = new THREE.Mesh(new THREE.BoxGeometry(1.7, t.cabinH, 2.1),
-      new THREE.MeshLambertMaterial({ color: isPolice ? 0x1c2733 : 0x18242e }));
+      new THREE.MeshPhongMaterial({ color: isPolice ? 0x1c2733 : 0x18242e, shininess: 90, specular: 0x557788 }));
     cabin.position.set(0, t.cabinY, -0.25); cabin.castShadow = true;
     g.add(cabin);
     // windshield tint
@@ -101,7 +122,18 @@
       roofBox.position.set(0, t.cabinY + t.cabinH / 2 + 0.15, -0.3);
       roofBox.castShadow = true;
       g.add(roofBox);
+      // dark rear window so the van's back is not one flat slab
+      var rw = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.5, 0.06), new THREE.MeshLambertMaterial({ color: 0x18242e }));
+      rw.position.set(0, t.cabinY, -1.32); g.add(rw);
     }
+    // bumpers + grille: the front/rear bars that make a box read as a car
+    for (var bi = 0; bi < 2; bi++) {
+      var bz = bi ? 1 : -1;
+      var bump = new THREE.Mesh(new THREE.BoxGeometry(t.bodyW + 0.06, 0.18, 0.22), BUMP_MAT);
+      bump.position.set(0, 0.32, bz * (t.bodyL / 2 - 0.02)); g.add(bump);
+    }
+    var grille = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.14, 0.06), BUMP_MAT);
+    grille.position.set(0, 0.62, t.bodyL / 2 + 0.01); g.add(grille);
     // headlights / taillights
     var hl = new THREE.MeshLambertMaterial({ color: 0xfff6c0, emissive: 0x888844 });
     var tl = new THREE.MeshLambertMaterial({ color: 0xff2222, emissive: 0x661111 });
@@ -142,6 +174,12 @@
       wheel.rotation.z = Math.PI / 2;
       wheel.position.set(wpos[w][0], 0.36, wpos[w][1]);
       wheel.castShadow = true;
+      // hubcap disc on the wheel's outer face (a child, so it steers and
+      // spins with the wheel); local +Y maps to world -X after the z-turn,
+      // so the sign flips per side
+      var hub = new THREE.Mesh(HUB_GEO, HUB_MAT);
+      hub.position.y = wpos[w][0] > 0 ? -0.15 : 0.15;
+      wheel.add(hub);
       g.add(wheel);
       wheels.push(wheel);
     }

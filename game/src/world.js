@@ -135,6 +135,11 @@
     var boardwalkPalette = ['#ff9f9f', '#ffd166', '#7fd4ff', '#ff7fb0', '#a8e6a1', '#ffb86b', '#c9a7ff', '#fff3b0'];
     var litPalette = ['#ffd76a', '#9fd8ff', '#fff2b0'];
     var roofPalette = [0x6b5d4f, 0x7a6a58, 0x5d6b7a, 0x8a5a4a, 0x4a5d3a];
+    // rooftop clutter: shared AC boxes + water tanks, placed from their own
+    // fixed stream so the main RNG (city layout) is untouched
+    var roofRng = U.makeRng(777);
+    var acG = new THREE.BoxGeometry(1.6, 0.8, 1.6), acM = new THREE.MeshLambertMaterial({ color: 0x8a8f96 });
+    var tkG = new THREE.CylinderGeometry(1.1, 1.1, 2.2, 8), tkM = new THREE.MeshLambertMaterial({ color: 0x7a6a58 });
     var parkBlocks = 0;
     for (var bx2 = 0; bx2 < N; bx2++) {
       for (var bz2 = 0; bz2 < N; bz2++) {
@@ -183,7 +188,7 @@
           var tw = 26, th = 68, td = 26;
           var ttex = facadeTexture('#2e6f8e', '#ffd76a', rng);
           var tower = new THREE.Mesh(new THREE.BoxGeometry(tw, th, td),
-            new THREE.MeshLambertMaterial({ map: ttex }));
+            new THREE.MeshPhongMaterial({ map: ttex, shininess: 90, specular: 0x99bbcc }));
           tower.position.set(bcx2, th / 2, bcz2);
           tower.castShadow = true; tower.receiveShadow = true;
           scene.add(tower);
@@ -277,6 +282,20 @@
             new THREE.MeshLambertMaterial({ color: rng.pick(roofPalette) }));
           roof.position.set(cx, h + 0.25, cz);
           scene.add(roof);
+          // rooftop clutter: an AC box on every roof, a water tank on tall ones
+          var ac = new THREE.Mesh(acG, acM);
+          ac.position.set(cx + roofRng.range(-w / 4, w / 4), h + 0.9, cz + roofRng.range(-d / 4, d / 4));
+          scene.add(ac);
+          if (h > 22) {
+            var tk = new THREE.Mesh(tkG, tkM);
+            tk.position.set(cx - w / 4, h + 1.6, cz - d / 4);
+            scene.add(tk);
+          }
+          // dark ground-floor plinth so the building sits on the sidewalk
+          var base = new THREE.Mesh(new THREE.BoxGeometry(w + 0.3, 1.4, d + 0.3),
+            new THREE.MeshLambertMaterial({ color: 0x3a3f46 }));
+          base.position.set(cx, 0.7, cz);
+          scene.add(base);
           buildings.push({ minX: cx - w / 2 - 0.4, maxX: cx + w / 2 + 0.4, minZ: cz - d / 2 - 0.4, maxZ: cz + d / 2 + 0.4 });
         }
         // a couple of parked cars on the block edge
@@ -314,7 +333,7 @@
         var glass = dtRng.pick(['#3a7ca8', '#2e6f8e', '#4a8ab0', '#5b7fa6']);
         var gtex = facadeTexture(glass, '#ffe9a0', dtRng);
         var tower = new THREE.Mesh(new THREE.BoxGeometry(15, th, 15),
-          new THREE.MeshLambertMaterial({ map: gtex }));
+          new THREE.MeshPhongMaterial({ map: gtex, shininess: 90, specular: 0x99bbcc }));
         tower.position.set(tx, th / 2, tz);
         tower.castShadow = true; tower.receiveShadow = true;
         scene.add(tower);
@@ -468,11 +487,30 @@
       }
     }
 
+    // --- traffic lights at every fourth intersection (the corners without
+    // street lamps): pole + head + three lamps, one lit, alternating by block
+    var tlPoleG = new THREE.CylinderGeometry(0.1, 0.14, 6.5, 6);
+    var tlHeadG = new THREE.BoxGeometry(0.42, 1.15, 0.42);
+    var tlLampG = new THREE.SphereGeometry(0.14, 6, 5);
+    var tlCols = [0xff3333, 0xffaa00, 0x33cc33], tlLit = [0xcc0000, 0xcc7700, 0x00aa00];
+    for (var tx = 0; tx < roadLinesArr.length; tx++) {
+      for (var tz = 0; tz < roadLinesArr.length; tz++) {
+        if ((tx + tz) % 4 !== 1) continue;
+        var px = roadLinesArr[tx] - ROAD / 2 - 1, pz = roadLinesArr[tz] - ROAD / 2 - 1;
+        var tp = new THREE.Mesh(tlPoleG, poleMat); tp.position.set(px, 3.25, pz); scene.add(tp);
+        var th2 = new THREE.Mesh(tlHeadG, poleMat); th2.position.set(px, 6.7, pz); scene.add(th2);
+        var lit = (tx + tz) % 8 < 4 ? 0 : 2;
+        for (var tl = 0; tl < 3; tl++) {
+          var lm = new THREE.Mesh(tlLampG, new THREE.MeshLambertMaterial({ color: tlCols[tl], emissive: tl === lit ? tlLit[tl] : 0x111111 }));
+          lm.position.set(px, 7.05 - tl * 0.33, pz + 0.23); scene.add(lm);
+        }
+      }
+    }
+
     // --- beach palms + a pier ---
     for (var bp = 0; bp < 10; bp++) {
       addPalm(scene, HALF + 12 + rng.range(-6, 6), -HALF + 20 + bp * 34 + rng.range(-6, 6), rng);
-    }
-    var pier = new THREE.Mesh(new THREE.BoxGeometry(70, 1, 8),
+    }    var pier = new THREE.Mesh(new THREE.BoxGeometry(70, 1, 8),
       new THREE.MeshLambertMaterial({ color: 0x8a6f4d }));
     pier.position.set(HALF + 46 + 30, 0.6, 40);
     pier.castShadow = true;

@@ -87,7 +87,7 @@
   var player = {
     x: 0, z: 20, y: 0, vy: 0, heading: 0, walkPhase: 0,
     onGround: true, inCar: null, speed: 0,
-    person: A.makePerson(rng, { shirt: 0xf2c14e, pants: 0x2c3e50, skin: 0xc9996a, hair: 0x1a1a1a }),
+    person: A.makePerson(rng, { shirt: 0x2c3e50, jacket: 0xf2c14e, pants: 0x2c3e50, skin: 0xc9996a, hair: 0x1a1a1a }),
   };
   scene.add(player.person.group);
 
@@ -140,6 +140,8 @@
   var muzzleLife = 0;
   // camera shake from hard crashes, decays over ~half a second
   var shake = 0;
+  // smoothed steering input + damage-flash level (both decay in the loop)
+  var steerSm = 0, dmgFlash = 0;
 
   function spawnTrafficCar(x, z, heading) {
     var type = A.pickCarType(rng);
@@ -208,7 +210,7 @@
   }
 
   function spawnOfficer(x, z) {
-    var person = A.makePerson(rng, { shirt: 0x1c2733, pants: 0x1c2733, skin: rng.pick([0xc9996a, 0x8a5a34, 0xe8b98a]), hat: 0x1c2733 });
+    var person = A.makePerson(rng, { shirt: 0x1c2733, pants: 0x1c2733, skin: rng.pick([0xc9996a, 0x8a5a34, 0xe8b98a]), hat: 0x1c2733, badge: true });
     var off = { x: x, z: z, heading: 0, person: person, walkPhase: 0, hp: 2, shootTimer: rng.range(0.5, 1.5) };
     person.group.position.set(x, 0, z);
     scene.add(person.group);
@@ -461,6 +463,15 @@
     var tail = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.45, 5.2), dark);
     tail.position.z = -3.2;
     group.add(tail);
+    // landing skids + tail fin + tail rotor
+    for (var sk = 0; sk < 2; sk++) {
+      var skid = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 3.6), dark);
+      skid.position.set(sk ? 0.8 : -0.8, -0.95, 0.4); group.add(skid);
+    }
+    var fin = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.1, 0.9), dark);
+    fin.position.set(0, 0.35, -5.5); group.add(fin);
+    var tailRotor = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.6, 0.18), new THREE.MeshBasicMaterial({ color: 0x111820 }));
+    tailRotor.position.set(-0.3, 0.3, -5.6); group.add(tailRotor);
     var rotor = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.08, 9), new THREE.MeshBasicMaterial({ color: 0x111820 }));
     rotor.position.y = 1.05;
     group.add(rotor);
@@ -483,7 +494,7 @@
     scene.add(helicopterCone);
     group.visible = false;
     scene.add(group);
-    helicopter = { group: group, rotor: rotor, rotor2: rotor2, angle: 0 };
+    helicopter = { group: group, rotor: rotor, rotor2: rotor2, tailRotor: tailRotor, angle: 0 };
   }
 
   function updatePoliceHelicopter(dt) {
@@ -498,6 +509,7 @@
       helicopter.group.lookAt(player.x, 0, player.z);
       helicopter.rotor.rotation.y += dt * 22;
       helicopter.rotor2.rotation.y -= dt * 22;
+      helicopter.tailRotor.rotation.x += dt * 30;
       helicopterTarget.position.set(player.x, 0, player.z);
       // aim the searchlight cone from the helicopter down at the player:
       // the cone is 1 unit tall with its apex up, so stretch it to the
@@ -1283,14 +1295,17 @@
     // heat glow: the screen edges burn red as the heat rises — faint at 1-2
     // stars, strong at 3+ (a pure CSS overlay, no per-frame cost)
     if (heatGlow) {
-      heatGlow.style.opacity = wanted >= 3 ? Math.min(0.9, 0.3 + wanted * 0.12)
-        : (wanted > 0 ? 0.12 : 0);
+      // damage flash rides the same red vignette, fading in the main loop
+      heatGlow.style.opacity = Math.max(dmgFlash, wanted >= 3 ? Math.min(0.9, 0.3 + wanted * 0.12)
+        : (wanted > 0 ? 0.12 : 0));
     }
   }
 
   function showToast(text) {
     toastEl.textContent = text;
     toastEl.style.opacity = 1;
+    // pop animation: re-trigger the CSS keyframes on every toast
+    toastEl.classList.remove('pop'); void toastEl.offsetWidth; toastEl.classList.add('pop');
     toastTimer = 2.6;
   }
 
@@ -1808,6 +1823,7 @@
     if (state !== 'playing') return;
     health -= amount;
     lastDamageAt = gameTime;
+    dmgFlash = 0.55; // red flash through the wanted heat-glow vignette
     if (health <= 0) {
       health = 0;
       gameOver('wasted');
@@ -1850,8 +1866,10 @@
       // looser in the wet
       if (rainActive) steer *= 1.2;
       steer *= 1 - 0.25 * Math.min(Math.abs(car.speed) / topSpd, 1);
-      A.driveStep(car, throttle, steer, dt, topSpd, handbrake);
-      car.steer = steer;
+      // steering eases in instead of snapping, so the car feels weighty
+      steerSm += (steer - steerSm) * Math.min(1, dt * 7);
+      A.driveStep(car, throttle, steerSm, dt, topSpd, handbrake);
+      car.steer = steerSm;
       var res = W.resolveCollision(city, car.x, car.z, 1.5);
       if (res.hit) {
         var impact = Math.abs(car.speed);
@@ -2281,7 +2299,8 @@
     if (player.inCar) {
       var car = player.inCar;
       target = { x: car.x, z: car.z };
-      dist = 10.5; height = 4.4; lookY = 1.4;
+      // the camera pulls back a little with speed, so fast driving reads faster
+      dist = 10.5 + Math.min(4, Math.abs(car.speed) * 0.09); height = 4.4; lookY = 1.4;
       // camera follows behind the car, lerped toward the car's heading
       var wantYaw = car.heading + Math.PI;
       camYaw = U.lerpAngle(camYaw, wantYaw, U.clamp(dt * 1.4, 0, 1));
@@ -2683,6 +2702,7 @@
         muzzleLight.intensity = muzzleLife > 0 ? 3 * (muzzleLife / 0.06) : 0;
       }
       if (shake > 0) shake = Math.max(0, shake - dt * 1.8);
+      if (dmgFlash > 0) dmgFlash = Math.max(0, dmgFlash - dt * 1.2);
       updateBurst(dt);
       updateSmoke(dt);
       // tracers fade
